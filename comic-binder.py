@@ -1,11 +1,9 @@
-import csv
 import os.path
 from PIL import Image, ImageFont, ImageDraw
 import zipfile
 import io
 from datetime import datetime
 import img2pdf
-import shutil
 import argparse
 from yaml import safe_load
 
@@ -43,16 +41,6 @@ def compareFileTime(file1,file2):
     except FileNotFoundError:
         return False
 
-def copyDummyPage(source,dest):
-    image = Image.open(source)
-    resize_threshold(image,dest)
-
-def is_page_verso(filename):
-    filename = os.path.split(filename)[1]
-    filename_without_ext = os.path.splitext(filename)[0]
-    page_number = int(filename_without_ext[-3:])
-    return (page_number % 2) == 0
-
 def image_resize(image,mode):
     if mode=='mono':
         image = image.resize(sub_dimension, Image.LANCZOS)
@@ -72,33 +60,6 @@ def image_displace(image,is_verso):
         displacement = recto_displace
     image = addMargin(image,page_dimension,displacement)
     return image
-
-
-def resize_threshold(image,dest,source_file,memo):
-    image = image.resize(sub_dimension, Image.LANCZOS)
-    threshold = 129
-    image = image.point(lambda p: p > threshold and 255)
-    displacement = (300,300)
-    if not isPageEven(dest):
-        displacement = (450,300)
-    image = addMargin(image,page_dimension,displacement)
-    if not arguments.suppress_filenames:
-        if memo:
-            image = StampImage(image,memo,margin='top')
-        image=StampImage(image,source_file)
-    image = image.convert('1')
-    image.save(dest, dpi=(600, 600), compression='tiff_lzw')
-
-def resize_grayscale(image,dest,source_file):
-    image = image.resize(sub_dimension, Image.NEAREST)
-    displacement = (300,300)
-    if not isPageEven(dest):
-        displacement = (450,300)
-    image = addMargin(image,page_dimension,displacement)
-    if not arguments.suppress_filenames:
-        image=StampImage(image,source_file)
-    image = image.convert('L')
-    image.save(dest, dpi=(600, 600), compression='tiff_lzw')
 
 def extractMergedImageFromKRA(kra):
     archive = zipfile.ZipFile(kra,'r')
@@ -122,16 +83,6 @@ def CreateFrontMatter():
     image = image.convert('1')
     return image
 
-def CreateFrontMatter_legacy(filename):
-    image = Image.new('L',page_dimension,'white')
-    draw = ImageDraw.Draw(image)
-    font = ImageFont.truetype('/usr/share/fonts/TTF/Inconsolata-Regular.ttf',76)
-    time = datetime.now()
-    draw.text((700,700),"by Ivy Lynn Allie\nThis version compiled on "+time.strftime("%d %b %Y at %I:%M %p"),'black',font=font)
-    image = image.point(lambda p: p > 129 and 255)
-    image = image.convert('1')
-    image.save(filename,dpi=(600,600),compression='tiff_lzw')
-
 def StampImage(image,stamp,margin=''):
     draw = ImageDraw.Draw(image)
     font = ImageFont.truetype('/usr/share/fonts/TTF/Inconsolata-Regular.ttf',76)
@@ -146,19 +97,6 @@ def CreateBlankPage():
     image = Image.new('L',page_dimension,'white')
     image = image.convert('1')
     return image
-
-def CreatePDF():
-    print("Assembling PDF")
-    files = [f for f in os.listdir(staging_dir) if os.path.isfile(os.path.join(staging_dir, f))]
-    images = []
-    files.sort()
-    for f in files:
-        if os.path.splitext(f)[1] == '.tif':
-            image = Image.open(os.path.join(staging_dir, f))
-            images.append(image)
-    output_path = os.path.join('.', 'AO_Assembled.pdf')
-    images[0].save(output_path, "PDF", save_all=True, append_images=images[1:])
-    return output_path
 
 def img_to_pdf(filename):
     print("Assembling PDF")
@@ -190,7 +128,6 @@ def image_needs_update(page,output_file):
         return True
     else:
         return False
-
 
 def process_imagefile(page,page_number):
     directory_index = get_value_or_default(page,'dir')
