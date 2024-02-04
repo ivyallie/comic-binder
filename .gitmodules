@@ -1,0 +1,3 @@
+[submodule "KritaPy"]
+	path = KritaPy
+	url = https://github.com/ivyallie/KritaPy.git
