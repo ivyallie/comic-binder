@@ -6,6 +6,7 @@ from datetime import datetime
 import img2pdf
 import argparse
 from yaml import safe_load
+from math import ceil
 
 argparser = argparse.ArgumentParser(description='Assemble graphic novel from source files')
 argparser.add_argument('projectfile',help='The YAML file that defines the project')
@@ -98,25 +99,10 @@ def CreateBlankPage():
     image = image.convert('1')
     return image
 
-def img_to_pdf(filename):
-    print("Assembling PDF")
-    #filename = os.path.normpath(filename)
-    files = [f for f in os.listdir(staging_dir) if os.path.isfile(os.path.join(staging_dir, f))]
-    images = []
-    files.sort()
-    with open(filename,'wb') as f:
-        for file in files:
-            if os.path.splitext(file)[1] == '.tif':
-                path = os.path.join(staging_dir, file)
-                images.append(path)
-        f.write(img2pdf.convert(images))
-    return filename
-
 def img_to_pdf_from_list(list,filename):
-    print("Assembling PDF")
+    print("Assembling PDF",filename)
     files = [f for f in list if os.path.isfile(f)]
-    print(files)
-    images = []
+    #print(files)
     files.sort()
     with open(filename,'wb') as f:
         f.write(img2pdf.convert(files))
@@ -167,7 +153,7 @@ def get_image_or_blank(file):
     else:
         return Image.open(file)
 
-def make_booklet_sheet(file1,file2):
+def make_booklet_sheet(file1,file2,booklet_page_dimension):
     image1 = get_image_or_blank(file1)
     image2 = get_image_or_blank(file2)
     sheet_image = Image.new(image1.mode, booklet_page_dimension)
@@ -182,6 +168,69 @@ def get_setting(setting):
         return setting_value
     except KeyError:
         print('Setting',setting,'must be defined!')
+
+def next_multiple_of_four(value):
+    return (ceil(value) + 3) & ~0x03
+
+def add_blank_pages(pages,signature_length):
+    blank_pages_needed = signature_length - len(pages)
+    if blank_pages_needed:
+        global blank_pages_added
+        blank_pages_added = True
+        blanks = ['blank'] * blank_pages_needed
+        pages.extend(blanks)
+    return pages
+
+
+def make_booklet():
+    signatures = get_setting('booklet_signatures')
+    booklet_content = output_files
+    if not signatures or signatures == 1:
+        signature_length = next_multiple_of_four(len(booklet_content))
+        booklet_content = add_blank_pages(booklet_content,signature_length)
+        make_signature(booklet_content,settings['output'])
+    if signatures > 1:
+        pages_per_signature = next_multiple_of_four(len(booklet_content)/signatures)
+        signatures_content = define_signatures(booklet_content,pages_per_signature)
+        for iter, signature in enumerate(signatures_content):
+            general_output_filename = os.path.splitext(settings['output'])
+            signature_filename = general_output_filename[0]+"_"+str(iter).zfill(3)+general_output_filename[1]
+            signature_content = add_blank_pages(signatures_content[iter],pages_per_signature)
+            make_signature(signature_content,signature_filename)
+
+
+def define_signatures(imagelist,pages_per_signature):
+    signatures = []
+    for i in range(0,len(imagelist),pages_per_signature):
+        signature = imagelist[i:i + pages_per_signature]
+        signatures.append(signature)
+    return signatures
+
+
+def make_signature(imagelist,outputfile):
+    signature_sheets_files = []
+    booklet_page_dimension = (page_dimension[0] * 2, page_dimension[1])
+    booklet_sheets = len(imagelist) / 2
+
+    sheet = 0
+    while sheet < booklet_sheets:
+        iter = sheet + 1
+        if not iter % 2:  # recto
+            image1 = imagelist[iter - 1]
+            image2 = imagelist[len(imagelist) - iter]
+        else:
+            image2 = imagelist[iter - 1]
+            image1 = imagelist[len(imagelist) - iter]
+        booklet_sheet_image = make_booklet_sheet(image1, image2, booklet_page_dimension)
+        booklet_sheet_file_name = 'booklet_sheet_' + str(sheet)
+        booklet_sheet_file_path = os.path.join(staging_dir, booklet_sheet_file_name + '.tif')
+        booklet_sheet_image_output_file = os.path.abspath(booklet_sheet_file_path)
+        booklet_sheet_image.save(booklet_sheet_image_output_file, dpi=(settings['dpi'], settings['dpi']),
+                                 compression='tiff_lzw')
+        signature_sheets_files.append(booklet_sheet_file_path)
+        sheet += 1
+    img_to_pdf_from_list(signature_sheets_files, outputfile)
+
 
 
 new = 0
@@ -210,48 +259,16 @@ for page_number, page in enumerate(pages):
         page_image=StampImage(page_image,'Invalid page type '+str(page_type),margin='top')
     page_image.save(output_file, dpi=(settings['dpi'], settings['dpi']), compression='tiff_lzw')
 
-if booklet:
-    booklet_sheets_files = []
-    booklet_pages = get_setting('booklet_pages')
-    signatures = get_setting('booklet_signatures')
-    booklet_content = output_files
-    if not int(booklet_pages) % 4:  # Number of pages is divisible by 4, good to proceed
-        if len(pages) > booklet_pages:
-            print('Error: booklet_pages must not be less than the number of pages')
-            quit()
-        if len(pages) < booklet_pages:
-            print('Warning: booklet has more pages than project, blank pages will be added')
-            blank_pages_needed = booklet_pages - len(pages)
-            blanks = ['blank']*blank_pages_needed
-            booklet_content.extend(blanks)
-        booklet_page_dimension = (page_dimension[0]*2,page_dimension[1])
-        booklet_sheets = booklet_pages/2
-        sheet = 0
-        while sheet < booklet_sheets:
-            iter = sheet+1
-            if not iter%2: #recto
-                image1 = booklet_content[iter-1]
-                image2 = booklet_content[len(booklet_content)-iter]
-            else:
-                image2 = booklet_content[iter - 1]
-                image1 = booklet_content[len(booklet_content) - iter]
-            booklet_sheet_image = make_booklet_sheet(image1,image2)
-            booklet_sheet_file_name = 'booklet_sheet_' + str(sheet)
-            booklet_sheet_file_path = os.path.join(staging_dir, booklet_sheet_file_name + '.tif')
-            booklet_sheet_image_output_file = os.path.abspath(booklet_sheet_file_path)
-            booklet_sheet_image.save(booklet_sheet_image_output_file,  dpi=(settings['dpi'], settings['dpi']), compression='tiff_lzw')
-            booklet_sheets_files.append(booklet_sheet_file_path)
-            sheet += 1
-    else:
-        print('Error: booklet_pages must be divisible by 4',booklet_pages%4)
-        quit()
 
 if new or arguments.pdfonly:
     if booklet:
-        imagelist = booklet_sheets_files
+        blank_pages_added = False
+        make_booklet()
+        if blank_pages_added:
+            print('Warning: Blank pages were added to round page count.')
     else:
         imagelist = output_files
-    img_to_pdf_from_list(imagelist,settings['output'])
+        img_to_pdf_from_list(imagelist,settings['output'])
 else:
     print('No update needed')
 
