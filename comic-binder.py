@@ -222,7 +222,8 @@ def make_signature(imagelist,outputfile):
             image2 = imagelist[iter - 1]
             image1 = imagelist[len(imagelist) - iter]
         booklet_sheet_image = make_booklet_sheet(image1, image2, booklet_page_dimension)
-        booklet_sheet_file_name = 'booklet_sheet_' + str(sheet)
+        booklet_sheet_number = str(sheet).zfill(3)
+        booklet_sheet_file_name = 'booklet_sheet_' + booklet_sheet_number
         booklet_sheet_file_path = os.path.join(staging_dir, booklet_sheet_file_name + '.tif')
         booklet_sheet_image_output_file = os.path.abspath(booklet_sheet_file_path)
         booklet_sheet_image.save(booklet_sheet_image_output_file, dpi=(settings['dpi'], settings['dpi']),
