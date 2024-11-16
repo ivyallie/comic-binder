@@ -26,8 +26,6 @@ pages = project['pages']
 
 
 staging_dir = os.path.normpath(settings['staging'])
-sub_dimension = settings['sub_dimension']
-page_dimension = settings['page_dimension']
 
 
 def compareFileTime(file1,file2):
@@ -43,6 +41,7 @@ def compareFileTime(file1,file2):
         return False
 
 def image_resize(image,mode):
+    sub_dimension = get_value_or_default(page,'sub_dimension')
     if mode=='mono':
         image = image.resize(sub_dimension, Image.LANCZOS)
         threshold = 129
@@ -52,9 +51,12 @@ def image_resize(image,mode):
     return image
 
 def image_displace(image,is_verso):
-    d = settings['displacement']
-    recto_displace = (d['recto'],d['vertical'])
-    verso_displace = (d['verso'],d['vertical'])
+    page_dimension = get_value_or_default(page,'page_dimension')
+    recto = get_value_or_default(page,'recto_displace')
+    verso = get_value_or_default(page,'verso_displace')
+    vertical = get_value_or_default(page,'vertical_displace')
+    recto_displace = (recto,vertical)
+    verso_displace = (verso,vertical)
     if is_verso:
         displacement = verso_displace
     else:
@@ -74,6 +76,7 @@ def addMargin(image,dimensions,displace):
     return canvas
 
 def CreateFrontMatter():
+    page_dimension = get_value_or_default(page,'page_dimension')
     image = Image.new('L', page_dimension, 'white')
     draw = ImageDraw.Draw(image)
     font = ImageFont.truetype('/usr/share/fonts/TTF/Inconsolata-Regular.ttf', 76)
@@ -85,6 +88,7 @@ def CreateFrontMatter():
     return image
 
 def StampImage(image,stamp,margin=''):
+    page_dimension = get_value_or_default(page,'page_dimension')
     draw = ImageDraw.Draw(image)
     font = ImageFont.truetype('/usr/share/fonts/TTF/Inconsolata-Regular.ttf',76)
     if margin=='top':
@@ -95,6 +99,7 @@ def StampImage(image,stamp,margin=''):
     return image
 
 def CreateBlankPage():
+    page_dimension = get_value_or_default(page,'page_dimension')
     image = Image.new('L',page_dimension,'white')
     image = image.convert('1')
     return image
@@ -111,7 +116,11 @@ def img_to_pdf_from_list(list,filename):
 def get_value_or_default(dictionary,value_name):
     value = dictionary.get(value_name)
     if not value:
-        value = defaults.get(value_name)
+        try:
+            value = defaults[value_name]
+        except KeyError:
+            print('Default for',value_name,'not defined! Abort.')
+            quit()
     return value
 
 def image_needs_update(page,output_file):
@@ -139,9 +148,9 @@ def process_imagefile(page,page_number):
     image = image_resize(image,colorspace) #Resize image
     image = image_displace(image,(page_number % 2) == 0)
     if not arguments.suppress_annotations:
-        if settings.get('filenames'):
+        if get_value_or_default(page,'filenames'):
             image=StampImage(image,source_file)
-        if settings.get('memos'):
+        if get_value_or_default(page,'memos'):
             memo = get_value_or_default(page,'memo')
             if memo:
                 image=StampImage(image,memo,margin='top')
@@ -154,6 +163,7 @@ def get_image_or_blank(file):
         return Image.open(file)
 
 def make_booklet_sheet(file1,file2,booklet_page_dimension):
+    page_dimension = defaults.get('page_dimension')
     image1 = get_image_or_blank(file1)
     image2 = get_image_or_blank(file2)
     sheet_image = Image.new(image1.mode, booklet_page_dimension)
@@ -208,6 +218,7 @@ def define_signatures(imagelist,pages_per_signature):
 
 
 def make_signature(imagelist,outputfile):
+    page_dimension = defaults.get('page_dimension')
     signature_sheets_files = []
     booklet_page_dimension = (page_dimension[0] * 2, page_dimension[1])
     booklet_sheets = len(imagelist) / 2
@@ -226,7 +237,7 @@ def make_signature(imagelist,outputfile):
         booklet_sheet_file_name = 'booklet_sheet_' + booklet_sheet_number
         booklet_sheet_file_path = os.path.join(staging_dir, booklet_sheet_file_name + '.tif')
         booklet_sheet_image_output_file = os.path.abspath(booklet_sheet_file_path)
-        booklet_sheet_image.save(booklet_sheet_image_output_file, dpi=(settings['dpi'], settings['dpi']),
+        booklet_sheet_image.save(booklet_sheet_image_output_file, dpi=(defaults['dpi'], defaults['dpi']),
                                  compression='tiff_lzw')
         signature_sheets_files.append(booklet_sheet_file_path)
         sheet += 1
@@ -258,7 +269,8 @@ for page_number, page in enumerate(pages):
     else:
         page_image = CreateBlankPage()
         page_image=StampImage(page_image,'Invalid page type '+str(page_type),margin='top')
-    page_image.save(output_file, dpi=(settings['dpi'], settings['dpi']), compression='tiff_lzw')
+    dpi = get_value_or_default(page,'dpi')
+    page_image.save(output_file, dpi=(dpi, dpi), compression='tiff_lzw')
 
 
 if new or arguments.pdfonly:

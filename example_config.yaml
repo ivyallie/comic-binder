@@ -1,21 +1,20 @@
 project:
   title: Toad Zombies
   author: Petey Otterloop
-  sub_dimension: [4500,3300] #This is size of the "live area" where your art will appear
-  page_dimension: [5250,3900] #This is the size of the full page (with margins)
-  memos: true #Set to False to disable stamping of memos
-  filenames: true #Set to False to disable stamping of filenames
-  dpi: 600 #DPI of output files
-  displacement: #Displacement allows you to set where the live area is placed on the page
-    verso: 450
-    recto: 300 
-    vertical: 300
   staging: ./minimal_staging #Where to output the PDF-ready image files
   output: ./Book_test.pdf #Where to build the PDF
 defaults: #Set any defaults here and you won't have to specify them for each page
   colorspace: mono
   dir: pages
   type: image
+  sub_dimension: [4500,3300] #This is size of the "live area" where your art will appear
+  page_dimension: [5250,3900] #This is the size of the full page (with margins)
+  memos: true #Set to False to disable stamping of memos
+  filenames: true #Set to False to disable stamping of filenames
+  dpi: 600 #DPI of output files
+  recto_displace: 300 #Displacement allows you to set where the live area is placed on the page
+  verso_displace: 450
+  vertical_displace: 300
 directories: #define aliases for the directories where the pages are
   additional: ./pages/additional
   pages: ./pages
