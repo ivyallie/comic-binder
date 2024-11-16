@@ -13,6 +13,8 @@ argparser.add_argument('projectfile',help='The YAML file that defines the projec
 argparser.add_argument('--force',help='Disregard dates and regenerate all pages',action='store_true')
 argparser.add_argument('--pdfonly',help='Regenerate PDF but not images',action='store_true')
 argparser.add_argument('--suppress_annotations',help='Do not stamp pages with filenames or memos',action='store_true',default=False)
+argparser.add_argument('--booklet',help='Override booklet setting',action=argparse.BooleanOptionalAction)
+argparser.add_argument('--output',help='Output filename')
 
 arguments = argparser.parse_args()
 
@@ -198,12 +200,12 @@ def make_booklet():
     if not signatures or signatures == 1:
         signature_length = next_multiple_of_four(len(booklet_content))
         booklet_content = add_blank_pages(booklet_content,signature_length)
-        make_signature(booklet_content,settings['output'])
+        make_signature(booklet_content,get_output_filename())
     if signatures > 1:
         pages_per_signature = next_multiple_of_four(len(booklet_content)/signatures)
         signatures_content = define_signatures(booklet_content,pages_per_signature)
         for iter, signature in enumerate(signatures_content):
-            general_output_filename = os.path.splitext(settings['output'])
+            general_output_filename = os.path.splitext(get_output_filename())
             signature_filename = general_output_filename[0]+"_"+str(iter).zfill(3)+general_output_filename[1]
             signature_content = add_blank_pages(signatures_content[iter],pages_per_signature)
             make_signature(signature_content,signature_filename)
@@ -243,11 +245,21 @@ def make_signature(imagelist,outputfile):
         sheet += 1
     img_to_pdf_from_list(signature_sheets_files, outputfile)
 
+def get_output_filename():
+    if arguments.output is not None:
+        output = os.path.normpath(arguments.output)
+    else:
+        output = os.path.normpath(settings['output'])
+    return output
+
 
 
 new = 0
 
-booklet = settings.get('booklet')
+if arguments.booklet is not None:
+    booklet = arguments.booklet
+else:
+    booklet = settings.get('booklet')
 
 output_files = []
 
@@ -275,13 +287,15 @@ for page_number, page in enumerate(pages):
 
 if new or arguments.pdfonly:
     if booklet:
+        print('Making booklet...')
         blank_pages_added = False
         make_booklet()
         if blank_pages_added:
             print('Warning: Blank pages were added to round page count.')
     else:
+        output=get_output_filename()
         imagelist = output_files
-        img_to_pdf_from_list(imagelist,settings['output'])
+        img_to_pdf_from_list(imagelist,output)
 else:
     print('No update needed')
 
