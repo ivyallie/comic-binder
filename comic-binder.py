@@ -29,6 +29,11 @@ pages = project['pages']
 
 staging_dir = os.path.normpath(settings['staging'])
 
+universal_defaults = {
+    'memo': None,
+    'type': 'image'
+}
+
 
 def compareFileTime(file1,file2):
     # Returns the file which has been modified most recently
@@ -117,12 +122,16 @@ def img_to_pdf_from_list(list,filename):
 
 def get_value_or_default(dictionary,value_name):
     value = dictionary.get(value_name)
+    optional_defaults = ['memo']
     if not value:
         try:
             value = defaults[value_name]
         except KeyError:
-            print('Default for',value_name,'not defined! Abort.')
-            quit()
+            try:
+                value = universal_defaults[value_name]
+            except KeyError:
+                print('Default for',value_name,'not defined! Abort.')
+                quit()
     return value
 
 def image_needs_update(page,output_file):
